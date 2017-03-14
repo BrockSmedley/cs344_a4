@@ -65,6 +65,18 @@ int main(int argc, char *argv[])
 	  exit(0);
 	}
 
+	/* verify valid characters */
+	// for plaintext
+	int i = 0;
+	while (plaintext[i]){
+	  char c = plaintext[i];
+	  if ((c < 65 && c != 32) || (c > 90 && c < 97) || c > 122){ // alphabetic bounds
+	    fprintf(stderr, "You have one or more invalid characters in your input file\n");
+	    exit(1);
+	  }
+	  i++;
+	}
+
 	// Set up the server address struct
 	memset((char*)&serverAddress, '\0', sizeof(serverAddress)); // Clear out the address struct
 	portNumber = atoi(argv[3]); // Get the port number, convert to an integer from a string
@@ -98,7 +110,8 @@ int main(int argc, char *argv[])
 	memset(buffer, '\0', sizeof(buffer)); // Clear out the buffer again for reuse
 	memset(ciphertext, '\0', sizeof(ciphertext));
 
-	int recvSize;
+	int recvSize = 0;
+	charsRead = 0;
 	char chunk[255];
 	while(1){
 	  memset(chunk, 0, 255);
@@ -111,10 +124,10 @@ int main(int argc, char *argv[])
 	    //printf("CLIENT: receiving chunk...\n");
 	    charsRead += recvSize;
 	    strcat(buffer, chunk);
-	    //printf("recvSize: %d\n", recvSize);
 	    // check for end of stream
 	    if (chunk[recvSize-1] == '@'){
 	      //printf("Transmission complete\n");
+
 	      break;
 	    }
 	  }

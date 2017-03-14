@@ -94,6 +94,7 @@ int main(int argc, char *argv[])
 	memset(plaintext, '\0', sizeof(plaintext));
 
 	int recvSize;
+	charsRead = 0;
 	char chunk[255];
 	while(1){
 	  memset(chunk, 0, 255);

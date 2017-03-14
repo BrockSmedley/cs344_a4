@@ -46,71 +46,91 @@ int main(int argc, char *argv[])
 		error("ERROR on binding");
 	listen(listenSocketFD, 5); // Flip the socket on - it can now receive up to 5 connections
 
-	/* Accept a connection, blocking if one is not available until one connects */
 	// Get the size of the address for the client that will connect
 	sizeOfClientInfo = sizeof(clientAddress); 
-	establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo); // Accept
-	if (establishedConnectionFD < 0) error("ERROR on accept");
+	
 
-	// clear out buffer
-	memset(buffer, '\0', NUM_BYTES);
-
-	/* receive ciphertext and key from client */
-	/* loop to receive big transmissions */
-	int recvSize;
-	char chunk[255];
-	while (1){
-	  memset(chunk, 0, 255); // clear out chunk
-	  // read into chunk
-	  if ((recvSize = recv(establishedConnectionFD, chunk, 255, 0)) <= 0)
-	    break;
-	  else{
-	    //printf("SERVER: receiving chunk...\n");
-	    charsRead += recvSize;
-	    strcat(buffer, chunk);
-	    //printf("recvSize: %d\n", recvSize);
-	    // check for end of stream
-	    if (chunk[recvSize-1] == '@'){
-	      //printf("Transmission complete\n");
-	      break;
-	    }
+	while(1){
+	  /* Accept connections */
+	  establishedConnectionFD = accept(listenSocketFD, (struct sockaddr *)&clientAddress, &sizeOfClientInfo);
+	  int pid;
+	  if ((pid = fork()) == -1){
+	    close(establishedConnectionFD);
+	    continue;
 	  }
-	  // thanks http://www.binarytides.com/receive-full-data-with-recv-socket-function-in-c/
+	  else if (pid > 0){
+	    close(establishedConnectionFD);
+	    continue;
+	  }
+	  else if (pid == 0){
+	    // do stuff here
+	    if (establishedConnectionFD < 0) error("ERROR on accept");
+
+	    // clear out buffer
+	    memset(buffer, '\0', NUM_BYTES);
+
+	    /* receive ciphertext and key from client */
+	    /* loop to receive big transmissions */
+	    int recvSize;
+	    char chunk[255];
+	    while (1){
+	      memset(chunk, 0, 255); // clear out chunk
+	      // read into chunk
+	      if ((recvSize = recv(establishedConnectionFD, chunk, 255, 0)) <= 0)
+		break;
+	      else{
+		//printf("SERVER: receiving chunk...\n");
+		charsRead += recvSize;
+		strcat(buffer, chunk);
+		//printf("recvSize: %d\n", recvSize);
+		// check for end of stream
+		if (chunk[recvSize-1] == '@'){
+		  //printf("Transmission complete\n");
+		  break;
+		}
+	      }
+	      // thanks http://www.binarytides.com/receive-full-data-with-recv-socket-function-in-c/
+	    }
+	    
+	    // check for valid transmission
+	    if (charsRead < 0) error("ERROR reading from socket");
+	    //printf("DEC_SERVER: I received this from the client: \"%s\"\n", buffer);
+
+	    // parse out ciphertext
+	    int i = 0;
+	    while (buffer[i] != '&'){
+	      ciphertext[i] = buffer[i];
+	      i++;
+	    }
+	    i++;	// skip past the & char
+	    int j = 0;
+	    while (buffer[i] != '@'){
+	      keytext[j] = buffer[i];
+	      i++;
+	      j++;
+	    }
+
+	    //printf("[DEC_SERVER] ciphertext: '%s'\n", ciphertext);
+	    //printf("[DEC_SERVER] keytext: '%s'\n", keytext);
+
+	    // Send a Success message back to the client
+	    //charsRead = send(establishedConnectionFD, "I am the server, and I got your message", 39, 0); // Send success back
+	    
+	    // Decipher ciphertext
+	    strcpy(plaintext, decipher_str(ciphertext, keytext));
+	    strcat(plaintext, "@");
+
+	    // Send plaintext back to client
+	    charsRead = send(establishedConnectionFD, plaintext, strlen(plaintext), 0);
+	    
+	    if (charsRead < 0) error("ERROR writing to socket");
+	    close(establishedConnectionFD); // Close the existing socket which is connected to the client
+
+	    break;
+	  }
 	}
+
 	
-	// check for valid transmission
-	if (charsRead < 0) error("ERROR reading from socket");
-	//printf("DEC_SERVER: I received this from the client: \"%s\"\n", buffer);
-
-	// parse out ciphertext
-	int i = 0;
-	while (buffer[i] != '&'){
-	  ciphertext[i] = buffer[i];
-	  i++;
-	}
-	i++;	// skip past the & char
-	int j = 0;
-	while (buffer[i] != '@'){
-	  keytext[j] = buffer[i];
-	  i++;
-	  j++;
-	}
-
-	//printf("[DEC_SERVER] ciphertext: '%s'\n", ciphertext);
-	//printf("[DEC_SERVER] keytext: '%s'\n", keytext);
-
-	// Send a Success message back to the client
-	//charsRead = send(establishedConnectionFD, "I am the server, and I got your message", 39, 0); // Send success back
-	
-	// Decipher ciphertext
-	strcpy(plaintext, decipher_str(ciphertext, keytext));
-	strcat(plaintext, "@\0");
-
-	// Send plaintext back to client
-	charsRead = send(establishedConnectionFD, plaintext, strlen(plaintext), 0);
-	
-	if (charsRead < 0) error("ERROR writing to socket");
-	close(establishedConnectionFD); // Close the existing socket which is connected to the client
 	close(listenSocketFD); // Close the listening socket
 	return 0; 
 }
