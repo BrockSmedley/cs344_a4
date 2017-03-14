@@ -1,0 +1,2 @@
+#define SIZE_BYTES 560000
+#define NUM_BYTES 70000
